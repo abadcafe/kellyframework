@@ -1,20 +1,21 @@
 package kellyframework
 
 import (
-	"reflect"
-	"fmt"
-	"net/http"
 	"context"
-	"io"
-	"time"
-	"gopkg.in/go-playground/validator.v9"
 	"encoding/json"
-	"golang.org/x/net/trace"
-	"strconv"
-	"runtime/debug"
-	"github.com/julienschmidt/httprouter"
+	"fmt"
 	"github.com/gorilla/schema"
+	"github.com/julienschmidt/httprouter"
+	"golang.org/x/net/trace"
+	"gopkg.in/go-playground/validator.v9"
+	"io"
+	"net/http"
 	"net/url"
+	"reflect"
+	"runtime/debug"
+	"strconv"
+	"strings"
+	"time"
 )
 
 type ServiceMethodContext struct {
@@ -75,8 +76,8 @@ func checkServiceMethodPrototype(methodType reflect.Type) error {
 		return fmt.Errorf("the first argument should be type *ServiceMethodContext")
 	}
 
-	if methodType.In(1).Kind() != reflect.Ptr || methodType.In(1).Elem().Kind() != reflect.Struct {
-		return fmt.Errorf("the second argument should be a struct pointer")
+	if methodType.In(1).Kind() != reflect.Ptr || (methodType.In(1).Elem().Kind() != reflect.Struct && methodType.In(1).Elem().Kind() != reflect.Slice) {
+		return fmt.Errorf("the second argument should be a struct pointer or slice pointer")
 	}
 
 	if methodType.NumOut() != 1 {
@@ -126,7 +127,7 @@ func writeFormattedResponse(w http.ResponseWriter, tr trace.Trace, resp *Formatt
 	if resp.Code >= 400 {
 		tr.SetError()
 	}
-	
+
 	setResponseHeader(w)
 	w.WriteHeader(resp.Code)
 	json.NewEncoder(w).Encode(resp)
@@ -152,20 +153,20 @@ func (h *ServiceHandler) parseArgument(r *http.Request, params httprouter.Params
 	if err != nil {
 		return err
 	}
-
-	err = formDecoder.Decode(arg, r.Form)
-	if err != nil {
-		return err
+	a := reflect.ValueOf(arg)
+	if a.Elem().Kind() == reflect.Struct {
+		err = formDecoder.Decode(arg, r.Form)
+		if err != nil {
+			return err
+		}
 	}
-
 	// json content is prior to query string.
-	if !h.bypassRequestBody && r.Header.Get("Content-Type") == "application/json" {
+	if !h.bypassRequestBody && strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
 		err := json.NewDecoder(r.Body).Decode(arg)
 		if err != nil {
 			return err
 		}
 	}
-
 	// params is prior to json content.
 	if params != nil {
 		paramValues := url.Values{}
@@ -178,12 +179,12 @@ func (h *ServiceHandler) parseArgument(r *http.Request, params httprouter.Params
 			return err
 		}
 	}
-
-	err = h.validator.Struct(arg)
-	if err != nil {
-		return err
+	if a.Kind() == reflect.Struct {
+		err = h.validator.Struct(arg)
+		if err != nil {
+			return err
+		}
 	}
-
 	return nil
 }
 
@@ -261,7 +262,7 @@ func (h *ServiceHandler) ServeHTTPWithParams(rw http.ResponseWriter, r *http.Req
 
 			logger.Record("methodCallArgument", string(marshaledArgs))
 			logger.Record("methodCallResponseData", string(marshaledData))
-			logger.Record("methodCallBeginTime", beginTime.Format("2006-01-02 03:04:05.999999999"))
+			logger.Record("methodCallBeginTime", beginTime.Format("2006-01-02 15:04:05.999999999"))
 			logger.Record("methodCallDuration", strconv.FormatFloat(duration.Seconds(), 'f', -1, 64))
 		}
 	}

@@ -62,6 +62,9 @@ func TestServiceHandlerCheckServiceMethodPrototype(t *testing.T) {
 		if err := checkServiceMethodPrototype(reflect.TypeOf(func(*ServiceMethodContext, struct{}) {})); err == nil {
 			t.Error()
 		}
+		if err := checkServiceMethodPrototype(reflect.TypeOf(func(*ServiceMethodContext, []struct{}) {})); err == nil {
+			t.Error()
+		}
 	})
 
 	t.Run("return value count wrong", func(t *testing.T) {
