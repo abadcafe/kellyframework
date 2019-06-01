@@ -191,7 +191,7 @@ func TestServiceHandlerServeHTTP(t *testing.T) {
 		recorder := httptest.NewRecorder()
 		h5.ServeHTTP(recorder, validatorEnabledFunctionInvalidArguments)
 		if recorder.Code != 400 {
-			t.Error("code is not 400, body:", recorder.Body)
+			t.Error("code is not 400, body:", recorder.Body, ", code:", recorder.Code)
 		}
 	})
 
@@ -200,7 +200,7 @@ func TestServiceHandlerServeHTTP(t *testing.T) {
 		recorder := httptest.NewRecorder()
 		h5.ServeHTTP(recorder, validatorEnabledFunctionInvalidQueryString)
 		if recorder.Code != 400 {
-			t.Error("code is not 400, body:", recorder.Body)
+			t.Error("code is not 400, body:", recorder.Body, ", code:", recorder.Code)
 		}
 	})
 }
