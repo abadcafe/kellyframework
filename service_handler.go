@@ -76,9 +76,11 @@ func checkServiceMethodPrototype(methodType reflect.Type) error {
 		return fmt.Errorf("the first argument should be type *ServiceMethodContext")
 	}
 
-	if methodType.In(1).Kind() != reflect.Ptr ||
-		(methodType.In(1).Elem().Kind() != reflect.Struct && methodType.In(1).Elem().Kind() != reflect.Slice) {
-		return fmt.Errorf("the second argument should be a struct pointer or slice pointer")
+	if !(methodType.In(1).Kind() == reflect.Map && methodType.In(1).Key().Kind() == reflect.String &&
+		methodType.In(1).Elem().Kind() == reflect.Interface && methodType.In(1).Elem().Name() == "") &&
+		!(methodType.In(1).Kind() == reflect.Ptr && methodType.In(1).Elem().Kind() == reflect.Struct) &&
+		!(methodType.In(1).Kind() == reflect.Slice) {
+		return fmt.Errorf("the second argument should be a struct pointer, slice or map[string]interface{}")
 	}
 
 	if methodType.NumOut() != 1 {
@@ -190,7 +192,7 @@ func (h *ServiceHandler) parseArgument(r *http.Request, params httprouter.Params
 			return err
 		}
 	}
-	
+
 	return nil
 }
 

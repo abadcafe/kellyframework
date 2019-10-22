@@ -1,12 +1,12 @@
 package kellyframework
 
 import (
-	"testing"
-	"strings"
 	"fmt"
+	"github.com/julienschmidt/httprouter"
 	"net/http/httptest"
 	"reflect"
-	"github.com/julienschmidt/httprouter"
+	"strings"
+	"testing"
 )
 
 type empty struct {
