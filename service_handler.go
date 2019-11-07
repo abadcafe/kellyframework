@@ -255,23 +255,32 @@ func (h *ServiceHandler) ServeHTTPWithParams(rw http.ResponseWriter, r *http.Req
 	}
 
 	// record some thing if logger existed.
-	if h.loggerContextKey != nil {
-		logger := r.Context().Value(h.loggerContextKey).(MethodCallLogger)
-		if logger != nil {
-			marshaledArgs, err := json.Marshal(arg.Interface())
-			if err != nil {
-				panic(err)
-			}
-
-			marshaledData, err := json.Marshal(respData)
-			if err != nil {
-				panic(err)
-			}
-
-			logger.Record("methodCallArgument", string(marshaledArgs))
-			logger.Record("methodCallResponseData", string(marshaledData))
-			logger.Record("methodCallBeginTime", beginTime.Format("2006-01-02 15:04:05.999999999"))
-			logger.Record("methodCallDuration", strconv.FormatFloat(duration.Seconds(), 'f', -1, 64))
-		}
+	if h.loggerContextKey == nil {
+		return
 	}
+
+	v := r.Context().Value(h.loggerContextKey)
+	if v == nil {
+		return
+	}
+
+	logger, ok := v.(MethodCallLogger)
+	if !ok {
+		return
+	}
+
+	marshaledArgs, err := json.Marshal(arg.Interface())
+	if err != nil {
+		panic(err)
+	}
+
+	marshaledData, err := json.Marshal(respData)
+	if err != nil {
+		panic(err)
+	}
+
+	logger.Record("methodCallArgument", string(marshaledArgs))
+	logger.Record("methodCallResponseData", string(marshaledData))
+	logger.Record("methodCallBeginTime", beginTime.Format("2006-01-02 15:04:05.999999999"))
+	logger.Record("methodCallDuration", strconv.FormatFloat(duration.Seconds(), 'f', -1, 64))
 }
