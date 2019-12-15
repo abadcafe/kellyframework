@@ -165,8 +165,9 @@ func (h *ServiceHandler) parseArgument(r *http.Request, params httprouter.Params
 		}
 	}
 
-	// json content is prior to query string.
-	if !h.bypassRequestBody && strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
+	// json content's priority is higher than query string, but lower than params in url pattern.
+	if !h.bypassRequestBody && strings.ToUpper(r.Method) == "POST"  &&
+			strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
 		err := json.NewDecoder(r.Body).Decode(arg)
 		if err != nil {
 			return err
