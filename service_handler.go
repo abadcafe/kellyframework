@@ -64,7 +64,7 @@ func init() {
 }
 
 func checkServiceMethodPrototype(methodType reflect.Type) error {
-	if methodType.Kind() != reflect.Func {
+	if methodType == nil || methodType.Kind() != reflect.Func {
 		return fmt.Errorf("you should provide a function or object method")
 	}
 
@@ -100,14 +100,14 @@ func NewServiceHandler(method interface{}, loggerContextKey interface{}, bypassR
 	}
 
 	h = &ServiceHandler{
-		loggerContextKey,
-		&serviceMethod{
-			reflect.ValueOf(method),
-			methodType.In(1),
+		loggerContextKey: loggerContextKey,
+		method: &serviceMethod{
+			value:   reflect.ValueOf(method),
+			argType: methodType.In(1),
 		},
-		validator.New(),
-		bypassRequestBody,
-		bypassResponseBody,
+		validator:          validator.New(),
+		bypassRequestBody:  bypassRequestBody,
+		bypassResponseBody: bypassResponseBody,
 	}
 
 	return
@@ -122,7 +122,7 @@ func setResponseHeader(w http.ResponseWriter) {
 func writeResponse(w http.ResponseWriter, tr trace.Trace, data interface{}) {
 	tr.LazyPrintf("%+v", data)
 	setResponseHeader(w)
-	json.NewEncoder(w).Encode(data)
+	_ = json.NewEncoder(w).Encode(data)
 }
 
 func writeFormattedResponse(w http.ResponseWriter, tr trace.Trace, resp *FormattedResponse) {
@@ -133,15 +133,15 @@ func writeFormattedResponse(w http.ResponseWriter, tr trace.Trace, resp *Formatt
 
 	setResponseHeader(w)
 	w.WriteHeader(resp.Code)
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 func doServiceMethodCall(method *serviceMethod, in []reflect.Value) (out []reflect.Value, ps *panicStack) {
 	defer func() {
 		if panicInfo := recover(); panicInfo != nil {
 			ps = &panicStack{
-				fmt.Sprintf("%s", panicInfo),
-				fmt.Sprintf("%s", debug.Stack()),
+				Panic: fmt.Sprintf("%s", panicInfo),
+				Stack: fmt.Sprintf("%s", debug.Stack()),
 			}
 		}
 	}()
@@ -151,30 +151,35 @@ func doServiceMethodCall(method *serviceMethod, in []reflect.Value) (out []refle
 }
 
 func (h *ServiceHandler) parseArgument(r *http.Request, params httprouter.Params, arg interface{}) error {
+	method := strings.ToUpper(r.Method)
+	contentType := strings.ToLower(r.Header.Get("Content-Type"))
+
 	// query string has lowest priority.
-	err := r.ParseForm()
+	var err error
+	if method == "POST" && contentType == "multipart/form-data" {
+		err = r.ParseMultipartForm(1024)
+	} else {
+		err = r.ParseForm()
+	}
+
 	if err != nil {
 		return err
 	}
 
-	a := reflect.ValueOf(arg)
-	if a.Elem().Kind() == reflect.Struct {
-		err = formDecoder.Decode(arg, r.Form)
-		if err != nil {
-			return err
-		}
+	err = formDecoder.Decode(arg, r.Form)
+	if err != nil {
+		return err
 	}
 
 	// json content's priority is higher than query string, but lower than params in url pattern.
-	if !h.bypassRequestBody && strings.ToUpper(r.Method) == "POST"  &&
-			strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
-		err := json.NewDecoder(r.Body).Decode(arg)
+	if method == "POST" && !h.bypassRequestBody && strings.HasPrefix(contentType, "application/json") {
+		err = json.NewDecoder(r.Body).Decode(arg)
 		if err != nil {
 			return err
 		}
 	}
 
-	// params is prior to json content.
+	// params in the url pattern has highest priority.
 	if params != nil {
 		paramValues := url.Values{}
 		for _, param := range params {
@@ -187,7 +192,7 @@ func (h *ServiceHandler) parseArgument(r *http.Request, params httprouter.Params
 		}
 	}
 
-	if a.Elem().Kind() == reflect.Struct {
+	if reflect.ValueOf(arg).Elem().Kind() == reflect.Struct {
 		err = h.validator.Struct(arg)
 		if err != nil {
 			return err
@@ -217,12 +222,12 @@ func (h *ServiceHandler) ServeHTTPWithParams(rw http.ResponseWriter, r *http.Req
 	beginTime := time.Now()
 	out, methodPanic := doServiceMethodCall(h.method, []reflect.Value{
 		reflect.ValueOf(&ServiceMethodContext{
-			r.Context(),
-			r.RemoteAddr,
-			r.Header,
-			r.Body,
-			rw.Header(),
-			rw,
+			Context:            r.Context(),
+			RemoteAddr:         r.RemoteAddr,
+			RequestHeader:      r.Header,
+			RequestBodyReader:  r.Body,
+			ResponseHeader:     rw.Header(),
+			ResponseBodyWriter: rw,
 		}),
 		arg,
 	})

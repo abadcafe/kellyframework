@@ -1,13 +1,13 @@
 package kellyframework
 
 import (
-	"net/http"
 	"context"
-	"time"
-	"io"
-	"github.com/sirupsen/logrus"
-	"strconv"
 	"encoding/json"
+	"github.com/sirupsen/logrus"
+	"io"
+	"net/http"
+	"strconv"
+	"time"
 )
 
 type AccessLogDecorator struct {
@@ -45,18 +45,18 @@ func NewAccessLogDecorator(handler http.Handler, logWriter io.Writer, loggingHea
 	logger.Formatter = &logrus.TextFormatter{DisableTimestamp: true}
 	logger.Out = logWriter
 	return &AccessLogDecorator{
-		handler,
-		loggingHeaders,
-		rowFillerContextKey,
-		rowFillerFactory,
-		logger,
+		Handler:             handler,
+		loggingHeaders:      loggingHeaders,
+		rowFillerContextKey: rowFillerContextKey,
+		rowFillerFactory:    rowFillerFactory,
+		logger:              logger,
 	}
 }
 
 func (d *AccessLogDecorator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	beginTime := time.Now()
 	row := &AccessLogRow{
-		make(logrus.Fields),
+		fields: make(logrus.Fields),
 	}
 
 	if d.rowFillerContextKey != nil && d.rowFillerFactory != nil {
@@ -65,8 +65,8 @@ func (d *AccessLogDecorator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sw := &statusResponseWriter{
-		w,
-		http.StatusOK,
+		ResponseWriter: w,
+		status:         http.StatusOK,
 	}
 
 	d.Handler.ServeHTTP(sw, r)
